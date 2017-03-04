@@ -6,7 +6,7 @@ import random
 DISCOUNT_FACTOR = 0.9  # 감가율
 
 
-class PolicyIterationAgent:
+class PolicyIteration:
     def __init__(self, env):
         self.env = env
         # 가치(value)값을 담을 2차원 리스트

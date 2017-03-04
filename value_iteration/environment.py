@@ -2,7 +2,7 @@ import tkinter as tk
 import time
 import numpy as np
 from PIL import ImageTk, Image
-from policy_iteration import PolicyIteration
+from value_iteration import ValueIteration
 
 UNIT = 100  # pixels
 HEIGHT = 5  # grid height
@@ -15,12 +15,12 @@ REWARDS = []
 class GraphicDisplay(tk.Tk):
     def __init__(self):
         super(GraphicDisplay, self).__init__()
-        self.title('Policy Iteration')
+        self.title('Value Iteration')
         self.geometry('{0}x{1}'.format(HEIGHT * UNIT, HEIGHT * UNIT + 50))
         self.texts = []
         self.arrows = []
         self.util = Util()
-        self.agent = PolicyIteration(self.util)
+        self.agent = ValueIteration(self.util)
         self._build_env()
 
     def _build_env(self):
@@ -29,20 +29,19 @@ class GraphicDisplay(tk.Tk):
                                 width=WIDTH * UNIT)
 
         # Buttons
-
-        iteration_button = tk.Button(self, text="Evaluation", command=self.policy_evaluation)
+        iteration_button = tk.Button(self, text="Calculate", command=self.calculate_value)
         iteration_button.configure(width=10, activebackground="#33B5E5")
         self.canvas.create_window(WIDTH * UNIT * 0.13, (HEIGHT * UNIT) + 10, window=iteration_button)
 
-        policy_button = tk.Button(self, text="Improvement", command=self.policy_improvement)
+        policy_button = tk.Button(self, text="Optimal Policy", command=self.print_optimal_policy)
         policy_button.configure(width=10, activebackground="#33B5E5")
         self.canvas.create_window(WIDTH * UNIT * 0.37, (HEIGHT * UNIT) + 10, window=policy_button)
 
-        policy_button = tk.Button(self, text="move", command=self.move_by_policy)
+        policy_button = tk.Button(self, text="Move", command=self.move_by_policy)
         policy_button.configure(width=10, activebackground="#33B5E5")
         self.canvas.create_window(WIDTH * UNIT * 0.62, (HEIGHT * UNIT) + 10, window=policy_button)
 
-        policy_button = tk.Button(self, text="clear", command=self.clear)
+        policy_button = tk.Button(self, text="Clear", command=self.clear)
         policy_button.configure(width=10, activebackground="#33B5E5")
         self.canvas.create_window(WIDTH * UNIT * 0.87, (HEIGHT * UNIT) + 10, window=policy_button)
 
@@ -87,7 +86,7 @@ class GraphicDisplay(tk.Tk):
 
         self.canvas.delete(self.rectangle)
         self.rectangle = self.canvas.create_image(50, 50, image=self.rectangle_image)
-        self.agent = PolicyIterationAgent(self.util)
+        self.agent = ValueIteration(self.util)
 
     def reset(self):
         self.update()
@@ -142,8 +141,10 @@ class GraphicDisplay(tk.Tk):
         return s_, reward, done
 
     def rectangle_move(self, action):
+
         base_action = np.array([0, 0])
         self.render()
+
         if action[0] == 1:  # down
             base_action[1] += UNIT
         elif action[0] == -1:  # up
@@ -164,35 +165,35 @@ class GraphicDisplay(tk.Tk):
     def move_by_policy(self):
         self.canvas.delete(self.rectangle)
         self.rectangle = self.canvas.create_image(50, 50, image=self.rectangle_image)
-        while len(self.agent.get_policies()[self.rectangle_location()[0]][self.rectangle_location()[1]]) != 0:
-            self.after(100, self.rectangle_move(
-                self.agent.get_action([self.rectangle_location()[0], self.rectangle_location()[1]])))
+        agent_state = [self.rectangle_location()[0], self.rectangle_location()[1]]
+        while len(self.agent.get_action(agent_state, False)) != 0:
+            agent_state = [self.rectangle_location()[0], self.rectangle_location()[1]]
+            self.after(100, self.rectangle_move(self.agent.get_action(agent_state,True)))
 
     def draw_one_arrow(self, col, row, action):
-
-        if col == 2 and row == 2:
-            return
-
-        if action[0] > 0:  # up
-            origin_x, origin_y = 50 + (UNIT * row), 10 + (UNIT * col)
-            self.arrows.append(self.canvas.create_image(origin_x, origin_y, image=self.up_image))
-
-        if action[1] > 0:  # down
+        if action[0] == 1:  # down
             origin_x, origin_y = 50 + (UNIT * row), 90 + (UNIT * col)
             self.arrows.append(self.canvas.create_image(origin_x, origin_y, image=self.down_image))
 
-        if action[2] > 0:  # left
-            origin_x, origin_y = 10 + (UNIT * row), 50 + (UNIT * col)
-            self.arrows.append(self.canvas.create_image(origin_x, origin_y, image=self.left_image))
+        elif action[0] == -1:  # up
+            origin_x, origin_y = 50 + (UNIT * row), 10 + (UNIT * col)
+            self.arrows.append(self.canvas.create_image(origin_x, origin_y, image=self.up_image))
 
-        if action[3] > 0:  # right
+        elif action[1] == 1:  # right
             origin_x, origin_y = 90 + (UNIT * row), 50 + (UNIT * col)
             self.arrows.append(self.canvas.create_image(origin_x, origin_y, image=self.right_image))
 
-    def draw_from_policy(self, policies):
-        for i in range(HEIGHT):
-            for j in range(WIDTH):
-                self.draw_one_arrow(i, j, policies[i][j])
+        elif action[1] == -1:  # left
+            origin_x, origin_y = 10 + (UNIT * row), 50 + (UNIT * col)
+            self.arrows.append(self.canvas.create_image(origin_x, origin_y, image=self.left_image))
+
+    def draw_from_values(self, state, action_list):
+
+        i = state[0]
+        j = state[1]
+
+        for action in action_list:
+            self.draw_one_arrow(i, j, action)
 
     def print_values(self, values):
         for i in range(WIDTH):
@@ -204,18 +205,21 @@ class GraphicDisplay(tk.Tk):
         self.canvas.tag_raise(self.rectangle)
         self.update()
 
-    def policy_evaluation(self):
+    def calculate_value(self):
         for i in self.texts:
             self.canvas.delete(i)
-        self.agent.policy_evaluation()
+        self.agent.calculate_value()
         self.print_values(self.agent.get_values())
 
-    def policy_improvement(self):
+    def print_optimal_policy(self):
         for i in self.arrows:
             self.canvas.delete(i)
-        self.agent.policy_improvement()
-        self.draw_from_policy(self.agent.get_policies())
 
+        for state in self.util.get_all_states():
+            action = self.agent.get_action(state, False)
+            print(" state : ", state)
+            print(" action : ", action)
+            self.draw_from_values(state, action)
 
 class Util:
     def __init__(self):
